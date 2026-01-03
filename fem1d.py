@@ -25,8 +25,7 @@ BilinearForm = Callable[[BasisFunc, BasisFunc, float, float], float]
 class Element1D:
     x0: float
     x1: float
-    n0: int #global node
-    n1: int #global node
+    n: list[int] #global nodes
     basis: Basis1D
     op: BilinearForm
 
@@ -40,47 +39,36 @@ class Element1D:
             M.append(row)
         return M
 
+    def order(self) -> int:
+        return len(self.basis.f)
 
-def assemble_1d(e: list[Element1D]) -> Matrix[float]:
-    M = []
-    element_matrices = [e_.element_matrix() for e_ in e]
-    #left boundary
-    row = [element_matrices[0][0][0], element_matrices[0][0][1]] + [0 for _ in range(len(e) - 1)]
-    M.append(row)
 
-    #interior
-    for e_ in range(0, len(e) - 1):
-        row = [0.0 for _ in range(e_)]
-        row.append(element_matrices[e_][1][0])
-        row.append(element_matrices[e_][0][0] + element_matrices[e_ + 1][1][1])
-        row.append(element_matrices[e_ + 1][0][1])
-        row += [0.0 for _ in range(len(e) - e_ - 2)]
-        M.append(row)
-
-    #right boundary
-    row = row = [0.0 for _ in range(len(e) - 1)] + [element_matrices[-1][1][0], element_matrices[-1][1][1]]
-    M.append(row)
-
+def assemble_1d(elements: list[Element1D]) -> Matrix[float]:
+    M = [[0.0 for _ in range(len(elements) + 1)] for _ in range(len(elements) + 1)]
+    for e in elements:
+        ematrix = e.element_matrix()
+        for i in range(e.order()):
+            for j in range(e.order()):
+                M[e.n[i]][e.n[j]] += ematrix[i][j]
     return M
 
 
 def result_1d(x: float, u: list[float], elements: list[Element1D]) -> float:
-    element_coeffs = zip(elements, zip(u[:-1], u[1:]))
-    for e, (u0, u1) in element_coeffs:
+    for e in elements:
         if x <= e.x1 and x >= e.x0:
-            return e.basis[0](x) * u0 + e.basis[1](x) * u1
+            [f[0](x) * u[n] for (f, n) in zip(e.basis.f, e.n)]
     raise ValueError
 
 
 if __name__ == "__main__":
     np.set_printoptions(precision=3)
     L = 2 * np.pi #length of section
-    N = 1000 #number of elements
+    N = 500 #number of elements
     k = 1
     points = np.linspace(0, L, N + 1)
     def a(u: BasisFunc, v: BasisFunc, a: float, b: float) -> float:
         return quad(lambda x: u[1](x)*v[1](x) + k*k*u[0](x)*v[0](x), a, b)[0]
-    elements = [Element1D(x0, x1, i, i+1, Basis1D.linear_basis(x0, x1), a) for (i, (x0, x1)) in enumerate(zip(points[0:-1], points[1:]))]
+    elements = [Element1D(x0, x1, [i, i+1], Basis1D.linear_basis(x0, x1), a) for (i, (x0, x1)) in enumerate(zip(points[0:-1], points[1:]))]
     M = assemble_1d(elements)
     print(np.array(M))
 
