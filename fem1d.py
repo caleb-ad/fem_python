@@ -6,7 +6,7 @@ from numpy.typing import ArrayLike
 from dataclasses import dataclass
 import matplotlib.pyplot as plt
 
-BasisFunc = list[Callable[[float], float]] #function and its derivatives
+BasisFunc = list[Callable[[float], float]] # function and its derivatives
 type Matrix[T] = Sequence[Sequence[T]]
 
 @dataclass
@@ -56,7 +56,7 @@ def assemble_1d(elements: list[Element1D]) -> Matrix[float]:
 def result_1d(x: float, u: list[float], elements: list[Element1D]) -> float:
     for e in elements:
         if x <= e.x1 and x >= e.x0:
-            [f[0](x) * u[n] for (f, n) in zip(e.basis.f, e.n)]
+            return sum([f[0](x) * u[n] for (f, n) in zip(e.basis.f, e.n)])
     raise ValueError
 
 
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     M = assemble_1d(elements)
     print(np.array(M))
 
-    b = [-2] + [0 for _ in range(N - 1)] + [2]
+    b = [-3.0] + [0.0 for _ in range(N - 1)] + [3.0]
     u = inv(M) @ b
 
     domain = np.linspace(0, L, 3000)
