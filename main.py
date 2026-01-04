@@ -10,7 +10,7 @@ def attenuating(u: BasisFunc, v: BasisFunc, a: float, b: float) -> float:
 
 def inhomogenous(u: BasisFunc, v: BasisFunc, a: float, b: float) -> float:
     def k(x):
-        return x
+        return 10*x
     return quad(lambda x: u[1](x)*v[1](x) - k(x)*k(x)*u[0](x)*v[0](x), a, b)[0]
 
 def nonlinear(u: BasisFunc, v: BasisFunc, a: float, b: float) -> float:
@@ -22,7 +22,7 @@ def nonlinear(u: BasisFunc, v: BasisFunc, a: float, b: float) -> float:
 def main():
     np.set_printoptions(precision=3)
     L = 7 * np.pi #length of section
-    N = 500 #number of elements
+    N = 5000 #number of elements
     points = np.linspace(0, L, N + 1)
 
     elements = [Element1D(x0, x1, GlobalNode.from_ints([i, i+1]), Basis1D.linear_basis(x0, x1)) for (i, (x0, x1)) in enumerate(zip(points[0:-1], points[1:]))]
