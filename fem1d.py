@@ -138,7 +138,7 @@ class BoundaryValueProblem1D:
     def result(self, x: float, u: Sequence[float]) -> float:
         if self.boundary.is_func_condition():
             u = [self.boundary.vals[0]] + list(u) + [self.boundary.vals[1]]
-        for e in elements:
+        for e in self.elements:
             if x <= e.x1 and x >= e.x0:
                 return sum([f[0](x) * u[n.idx] for (f, n) in zip(e.basis.f, e.n)])
 
@@ -146,26 +146,29 @@ class BoundaryValueProblem1D:
 
 if __name__ == "__main__":
     np.set_printoptions(precision=3)
-    L = 5 * np.pi #length of section
+    L = 7 * np.pi #length of section
     N = 500 #number of elements
     k = 1
     points = np.linspace(0, L, N + 1)
-    def a(u: BasisFunc, v: BasisFunc, a: float, b: float) -> float:
+    def propagating(u: BasisFunc, v: BasisFunc, a: float, b: float) -> float:
         return quad(lambda x: u[1](x)*v[1](x) - k*k*u[0](x)*v[0](x), a, b)[0]
+    def attenuating(u: BasisFunc, v: BasisFunc, a: float, b: float) -> float:
+        return quad(lambda x: u[1](x)*v[1](x) + k*k*u[0](x)*v[0](x), a, b)[0]
     elements = [Element1D(x0, x1, GlobalNode.from_ints([i, i+1]), Basis1D.linear_basis(x0, x1)) for (i, (x0, x1)) in enumerate(zip(points[0:-1], points[1:]))]
     elements[0].n[0].is_boundary = True
     elements[-1].n[1].is_boundary = True
 
     # problem = BoundaryValueProblem1D(a, elements, lambda x: 0.0, Boundary1D(BoundaryType.Dirichlet, [1, 1]))
-    problem = BoundaryValueProblem1D(a, elements, lambda x: 0.0, Boundary1D(BoundaryType.Neumann, [1, -1, 0]))
-    print(np.array(problem.M))
-    # print(np.array(problem.b))
+    propagating_problem = BoundaryValueProblem1D(propagating, elements, lambda x: 5 * np.exp(-(x-L/2)**2), Boundary1D(BoundaryType.Neumann, [1, -1, 0]))
+    attenuating_problem = BoundaryValueProblem1D(attenuating, elements, lambda x: 5 * np.exp(-(x-L/2)**2), Boundary1D(BoundaryType.Neumann, [1, -1, 0]))
 
-    u = problem.solve()
+    u1 = propagating_problem.solve()
+    u2 = attenuating_problem.solve()
 
     domain = np.linspace(0, L, 3000)
     fig, axs =plt.subplots()
-    axs.plot(domain, [problem.result(x, u) for x in domain])
+    axs.plot(domain, [propagating_problem.result(x, u1) for x in domain])
+    axs.plot(domain, [attenuating_problem.result(x, u2) for x in domain])
     # axs.plot(domain, [result_1d(x, [pow(-1, i) for i in range(11)], elements) for x in domain])
     plt.show()
 
