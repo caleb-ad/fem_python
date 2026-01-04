@@ -58,22 +58,31 @@ class Element1D:
         return len(self.basis.f)
 
 class BoundaryType(enum.Enum):
-    Homogenous = enum.auto
-    Dirichlet = enum.auto
-    Mixed = enum.auto
+    Homogenous = enum.auto()
+    Dirichlet = enum.auto()
+    Mixed = enum.auto()
+    Neumann = enum.auto()
 
 @dataclass
 class Boundary1D:
-    btype: BoundaryType
+    btype: BoundaryType #will always be `BoundaryType.Dirichlet` or `BoundaryType.Mixed`
     vals: list[float]
+
+    def __post_init__(self):
+        if self.btype == BoundaryType.Homogenous:
+            self.btype = BoundaryType.Dirichlet
+            self.vals = [0.0, 0.0]
+        elif self.btype == BoundaryType.Neumann:
+            self.btype = BoundaryType.Mixed
+            self.vals = [self.vals[0], self.vals[1], 0.0]
 
     # true if boundary adds conditions to the function
     def is_func_condition(self) -> bool:
-        return  (self.btype == BoundaryType.Dirichlet or self.btype == BoundaryType.Homogenous)
+        return  self.btype == BoundaryType.Dirichlet
 
     # true if boundary adds conditions to the functions deriviative
     def is_deriv_condition(self) -> bool:
-        return (self.btype == BoundaryType.Mixed) and len(self.vals) == 3
+        return self.btype == BoundaryType.Mixed and len(self.vals) == 3
 
 class BoundaryValueProblem1D:
     M: Matrix[float]
@@ -106,15 +115,15 @@ class BoundaryValueProblem1D:
             self.b[elements[-1].n[0].idx] -= boundary.vals[1] * ematrix_N_0_1
         # modify `b` and `M` to implement Neumann conditions
         elif boundary.btype == BoundaryType.Mixed:
-            self.b[elements[0].n[0].idx] -= boundary.vals[0] * elements[0].basis.f[0][0](0)
-            self.b[elements[-1].n[1].idx] += boundary.vals[1] * elements[-1].basis.f[1][0](0)
-            self.M[elements[0].n[0].idx][elements[0].n[0].idx] -= boundary.vals[2] * elements[0].basis.f[0][0](0)
-            self.M[elements[-1].n[1].idx][elements[-1].n[1].idx] += boundary.vals[2] * elements[-1].basis.f[1][0](0)
+            self.b[elements[0].n[0].idx] -= boundary.vals[0] * elements[0].basis.f[0][0](elements[0].x0)
+            self.b[elements[-1].n[1].idx] += boundary.vals[1] * elements[-1].basis.f[1][0](elements[-1].x1)
+            self.M[elements[0].n[0].idx][elements[0].n[0].idx] -= boundary.vals[2] * elements[0].basis.f[0][0](elements[0].x0)
+            self.M[elements[-1].n[1].idx][elements[-1].n[1].idx] += boundary.vals[2] * elements[-1].basis.f[1][0](elements[-1].x1)
 
-        start = 1 if boundary.is_func_condition() else 0
-        end = -1 if boundary.is_func_condition else None
         # Dirichlet condition sets first and last equations in `M` to 0
         if boundary.is_func_condition():
+            start = 1
+            end = -1
             self.M = [row[start:end] for row in self.M[start:end]]
             self.b = self.b[start:end]
 
@@ -135,10 +144,9 @@ class BoundaryValueProblem1D:
 
         raise ValueError
 
-
 if __name__ == "__main__":
     np.set_printoptions(precision=3)
-    L = 2 * np.pi #length of section
+    L = 5 * np.pi #length of section
     N = 500 #number of elements
     k = 1
     points = np.linspace(0, L, N + 1)
@@ -148,8 +156,10 @@ if __name__ == "__main__":
     elements[0].n[0].is_boundary = True
     elements[-1].n[1].is_boundary = True
 
-    problem = BoundaryValueProblem1D(a, elements, lambda x: 0.0, Boundary1D(BoundaryType.Dirichlet, [1, 1]))
+    # problem = BoundaryValueProblem1D(a, elements, lambda x: 0.0, Boundary1D(BoundaryType.Dirichlet, [1, 1]))
+    problem = BoundaryValueProblem1D(a, elements, lambda x: 0.0, Boundary1D(BoundaryType.Neumann, [1, -1, 0]))
     print(np.array(problem.M))
+    # print(np.array(problem.b))
 
     u = problem.solve()
 
