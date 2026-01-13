@@ -3,6 +3,12 @@ from scipy.interpolate import PPoly
 from scipy.linalg import det, inv, norm
 import numpy as np
 from typing import Optional, Any
+import unittest
+from matplotlib.patches import PathPatch
+from matplotlib.path import Path
+import matplotlib.pyplot as plt
+from itertools import chain
+from matplotlib.animation import ArtistAnimation
 
 
 Point = tuple[float, float]
@@ -11,8 +17,15 @@ Point = tuple[float, float]
 class Triangles:
     points: list[tuple[Point, Point, Point]]
 
-    def __getattribute__(self, name: str) -> Any:
-        return self.points.__getattribute__(name)
+    def visualize(self):
+        codes = [[Path.MOVETO, Path.LINETO, Path.LINETO, Path.CLOSEPOLY] for _ in range(len(self.points))]
+        vertices = [[p[0], p[1], p[2], p[2]] for p in self.points]
+        hull = Path(list(chain(*vertices)), codes=list(chain(*codes)))
+        patch = PathPatch(hull, edgecolor="blue", facecolor="none")
+        fig, axs = plt.subplots()
+        axs.add_patch(patch)
+        axs.autoscale_view()
+        plt.show()
 
 
 @dataclass
@@ -67,8 +80,13 @@ class LPline:
             return p
 
         hull = self
+        fig, axs = plt.subplots()
+        artists = []
         covering = Triangles([])
-        while len(hull.points) > 0:
+        while len(hull.points) > 3:
+            #add frame to animation
+            artists.append([hull.as_path()])
+
             angles = [hull.angle_at(i) for i in range(len(hull.points))]
             min_angle = min(angles)
             i = angles.index(min_angle)
@@ -103,15 +121,14 @@ class LPline:
                 proposed = (hull[i], hull[i+1], hull[i-1])
                 hull.points.pop(i)
 
-            covering.append(proposed)
+            covering.points.append(proposed)
+
+
+        animation = ArtistAnimation(fig=fig, artists=artists)
+
+        plt.show()
+        # animation.save("hull.gif")
         return covering
-
-
-
-
-
-
-
 
 
     def angle_at(self, i: int) -> float:
@@ -169,3 +186,45 @@ class LPline:
                 if ipoint:
                     intersections.append(ipoint)
         return intersections
+
+    def as_path(self) -> PathPatch:
+        codes = [Path.MOVETO] + [Path.LINETO for _ in range(len(self.points) - 2)] + [Path.CLOSEPOLY]
+        hull = Path(self.points, codes=codes)
+        return PathPatch(hull, edgecolor="blue", facecolor="none")
+
+
+    def visualize(self, fig_axs=None):
+        patch = self.as_path()
+        if fig_axs is None:
+            fig, axs = plt.subplots()
+        else:
+            fig, axs = fig_axs
+        axs.add_patch(patch)
+        axs.autoscale_view()
+        return fig, axs
+
+
+class CoveringTest(unittest.TestCase):
+    # @unittest.skip("")
+    def test_rectangle(self):
+        v0 = np.array((1.0, 0.0))
+        v1 = np.array((0.0, 1.0))
+        l0 = 10
+        l1 = 5
+        side1 = [x * v0 for x in np.linspace(0, l0, 5)]
+        side2 = [v0 * l0 + x * v1 for x in np.linspace(0, l1, 10)]
+        side3 = [(l0 - x) * v0 + v1 * l1 for x in np.linspace(0, l0, 15)]
+        side4 = [(l1 - x) * v1 for x in np.linspace(0, l1, 10)]
+        hull = LPline(side1 + side2 + side3 + side4)
+        # hull.visualize()
+        covering = hull.triangulate()
+        # covering.visualize()
+
+    @unittest.skip("")
+    def test_triangle_visualization(self):
+        t = Triangles([((0.0, 0.0), (1.0, 0.0), (0.0, 1.0)), ((2.0, 1.0), (2.0, 0.0), (1.0, 1.0))])
+        t.visualize()
+
+
+if __name__ == "__main__":
+    unittest.main()
